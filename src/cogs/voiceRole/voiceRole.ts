@@ -424,7 +424,7 @@ class VoiceRole extends Plugin implements IModule {
 		const row = await this.getGuildRow(member.guild);
 		const specificRow = member.voiceChannel ? await this.getSpecificRow(member.voiceChannel) : undefined;
 		if(!row && !specificRow) {
-			this.verboseLogging && this.log("warn", `give(${member.id} [[${member.guild.name}]]): could not find row and specific row for ${member.voiceChannel ? `${member.voiceChannel.name} [${member.voiceChannel.guild.name}]` : "unknown"}`);
+			this.verboseLogging && this.log("warn", `give(${member.user.tag} [${member.guild.name}]): could not find row and specific row for ${member.voiceChannel ? `${member.voiceChannel.name} [${member.voiceChannel.guild.name}]` : "unknown"}`);
 			return;
 		}
 
@@ -437,18 +437,18 @@ class VoiceRole extends Plugin implements IModule {
 					// let's give it to user if he has not it
 					if(!member.roles.has(row.voice_role)) {
 						// yep, take this role, my dear
-						this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): member has no voice role, giving role ${row.voice_role}`);
+						this.verboseLogging && this.log("info", `give(${member.user.tag} [${member.guild.name}]): member has no voice role, giving role ${row.voice_role}`);
 						await member.addRole(row.voice_role, await localizeForGuild(member.guild, "VOICEROLE_JOINED_VC", {
 							channelName: member.voiceChannel.name
 						}));
 					} else {// nop, you have this role, next time.. next time...
-						this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): member has voice role, nothing to do`);
+						this.verboseLogging && this.log("info", `give(${member.user.tag} [${member.guild.name}]): member has voice role, nothing to do`);
 					}
 				} else {
 					// guild has no our voice role
 					// no surprises in bad admins
 					// removing it
-					this.verboseLogging && this.log("warn", `give(${member.id} [[${member.guild.name}]]): voice role ${row.voice_role} was removed, row gets updated`);
+					this.verboseLogging && this.log("warn", `give(${member.user.tag} [${member.guild.name}]): voice role ${row.voice_role} was removed, row gets updated`);
 
 					row.voice_role = "-";
 					await this.updateGuildRow(row);
@@ -462,16 +462,16 @@ class VoiceRole extends Plugin implements IModule {
 				// dear, do you have this specific role already?
 				if(!member.roles.has(specificRow.voice_role)) {
 					// nope, take it
-					this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): giving spefic role ${specificRow.voice_role}`);
+					this.verboseLogging && this.log("info", `give(${member.user.tag} [${member.guild.name}]): giving spefic role ${specificRow.voice_role}`);
 					await member.addRole(specificRow.voice_role, await localizeForGuild(member.guild, "VOICEROLE_SPECIFIC_ADDED", {
 						channelName: member.voiceChannel.name
 					}));
 				} else {
-					this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): member already has specific role ${specificRow.voice_role}`);
+					this.verboseLogging && this.log("info", `give(${member.user.tag} [${member.guild.name}]): member already has specific role ${specificRow.voice_role}`);
 				}
 			} else {
 				// sadly bad admin removed it, can remove row
-				this.verboseLogging && this.log("warn", `give(${member.id} [[${member.guild.name}]]): specific role ${specificRow.voice_role} was removed, row gets deleted`);
+				this.verboseLogging && this.log("warn", `give(${member.user.tag} [${member.guild.name}]): specific role ${specificRow.voice_role} was removed, row gets deleted`);
 				await this.deleteSpecificRow(specificRow);
 			}
 		}
@@ -482,7 +482,7 @@ class VoiceRole extends Plugin implements IModule {
 		const specificRow = member.voiceChannel ? await this.getSpecificRow(member.voiceChannel) : undefined;
 
 		if(!row && !specificRow) {
-			this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): could not find row and specific row for ${member.voiceChannel ? `${member.voiceChannel.name} [${member.voiceChannel.guild.name}]` : "unknown"}`);
+			this.verboseLogging && this.log("warn", `remove(${member.user.tag} [${member.guild.name}]): could not find row and specific row for ${member.voiceChannel ? `${member.voiceChannel.name} [${member.voiceChannel.guild.name}]` : "unknown"}`);
 			return;
 		}
 
@@ -495,19 +495,19 @@ class VoiceRole extends Plugin implements IModule {
 					// role's here, we can remove it
 					// but let's check if user HAS this role
 					if(member.roles.has(row.voice_role)) {
-						this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): removing voice role ${row.voice_role}`);
+						this.verboseLogging && this.log("warn", `remove(${member.user.tag} [${member.guild.name}]): removing voice role ${row.voice_role}`);
 						// yes, he has it, can remove
 						await member.removeRole(row.voice_role, await localizeForGuild(member.guild, "VOICEROLE_LEFT_VC", {
 							channelName: member.voiceChannel.name
 						}));
 					} else { // else we doing nothin'
-						this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): member has no voice role ${row.voice_role}, nothing to do`);
+						this.verboseLogging && this.log("warn", `remove(${member.user.tag} [${member.guild.name}]): member has no voice role ${row.voice_role}, nothing to do`);
 					}
 				} else {
 					// wowee, role got deleted
 					// so we deleting guild row too
 
-					this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): role ${row.voice_role} was removed, row gets updated NOW`);
+					this.verboseLogging && this.log("warn", `remove(${member.user.tag} [${member.guild.name}]): role ${row.voice_role} was removed, row gets updated NOW`);
 
 					row.voice_role = "-";
 					await this.updateGuildRow(row);
@@ -522,12 +522,12 @@ class VoiceRole extends Plugin implements IModule {
 				// there we got good answer means everything is OK
 				// we can remove old specific role
 				if(member.roles.has(specificRow.voice_role)) {
-					this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): member has specific role ${specificRow.voice_role}, removing`);
+					this.verboseLogging && this.log("warn", `remove(${member.user.tag} [${member.guild.name}]): member has specific role ${specificRow.voice_role}, removing`);
 					await member.removeRole(specificRow.voice_role, await localizeForGuild(member.guild, "VOICEROLE_SPECIFIC_REMOVED", {
 						channelName: member.voiceChannel.name
 					}));
 				} else {
-					this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): member has no specific role ${specificRow.voice_role}, nothing to do`);
+					this.verboseLogging && this.log("warn", `remove(${member.user.tag} [${member.guild.name}]): member has no specific role ${specificRow.voice_role}, nothing to do`);
 				}
 			} else {
 				// sadly, but this means not everything is OK
