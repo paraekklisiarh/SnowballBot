@@ -40,6 +40,10 @@ interface ISpecificRoleRow {
 	voice_role: string;
 }
 
+interface IVoiceRoleOptions {
+	verboseLogs?: boolean;
+}
+
 @command(HELP_CATEGORY, `${PREFIX.slice(1)} set`, `loc:VOICEROLE_META_SET`, {
 	[`loc:VOICEROLE_META_SET_ARG0`]: {
 		description: `loc:VOICEROLE_META_SET_ARG0_DESC`,
@@ -68,17 +72,21 @@ class VoiceRole extends Plugin implements IModule {
 		return "snowball.features.voicerole";
 	}
 
-	db: knex;
-	log = getLogger("VoiceRole");
-	loaded = false;
+	private db: knex;
+	private log = getLogger("VoiceRole");
+	private verboseLogging = false;
 
-	constructor() {
+	constructor(options: IVoiceRoleOptions) {
 		super({
 			"message": (msg: Message) => this.onMessage(msg),
 			"voiceStateUpdate": (oldMember: GuildMember, newMember: GuildMember) => this.vcUpdated(oldMember, newMember)
 		}, true);
 		this.log("info", "Loading 'VoiceRole' plugin");
 		// this.initialize();
+		if(options) {
+			this.verboseLogging = !!options.verboseLogs;
+			this.verboseLogging && this.log("info", "Verbose logs are enabled, prepare ur consol");
+		}
 	}
 
 	async init() {
@@ -136,7 +144,8 @@ class VoiceRole extends Plugin implements IModule {
 		}
 
 		// stage six: report successfull status
-		this.loaded = true;
+		// this.loaded = true;
+		// we don't need tho
 
 		// stage seven: handling events
 		this.handleEvents();
@@ -197,22 +206,31 @@ class VoiceRole extends Plugin implements IModule {
 	async vcUpdated(oldMember: GuildMember, newMember: GuildMember) {
 		if(isVerifiedEnabled() && !(await isVerified(newMember))) {
 			// not going to do anything if user isn't verified
+			this.verboseLogging && this.log("warn", `Not going to handle ${newMember.user.tag}'s move: unverified`);
 			return;
 		}
-		if(oldMember.voiceChannel && newMember.voiceChannel) {
-			if(oldMember.voiceChannel.guild.id !== newMember.voiceChannel.guild.id) {
+
+		const oldVC = oldMember.voiceChannel;
+		const newVC = newMember.voiceChannel;
+
+		if(oldVC && newVC) {
+			if(oldVC.guild.id !== newVC.guild.id) {
 				// moved from one server to another (╯°□°）╯︵ ┻━┻
 				// better not to wait this
+				this.verboseLogging && this.log("info", `${newMember.user.tag}: moved (server switch) from ${oldVC.name} [${oldVC.guild.name}] → ${newVC.name} [${newVC.guild.name}]`);
 				this.VCR_Remove(oldMember);
 				this.VCR_Give(newMember);
 			} else {
 				// just moved from channel to channel on same server
+				this.verboseLogging && this.log("info", `${newMember.user.tag}: moved (local switch on '${oldVC.guild.name}') from ${oldVC.name} → ${newVC.name}`);
 				this.VCR_Remove(oldMember, newMember);
 				this.VCR_Give(newMember);
 			}
-		} else if(oldMember.voiceChannel && !newMember.voiceChannel) {
+		} else if(oldVC && !newVC) {
+			this.verboseLogging && this.log("info", `${newMember.user.tag}: left the channel ${oldVC.name} [${oldVC.guild.name}]`);
 			this.VCR_Remove(oldMember);
-		} else if(!oldMember.voiceChannel && newMember.voiceChannel) {
+		} else if(!oldVC && newVC) {
+			this.verboseLogging && this.log("info", `${newMember.user.tag}: joined the channel ${newVC.name} [${newVC.guild.name}]`);
 			this.VCR_Give(newMember);
 		}
 	}
@@ -328,13 +346,16 @@ class VoiceRole extends Plugin implements IModule {
 		for(const member of guild.members.values()) {
 			let voiceChannelOfMember: VoiceChannel | undefined = member.voiceChannel;
 			if(voiceChannelOfMember && voiceChannelOfMember.guild.id !== guild.id) {
+				this.verboseLogging && this.log("warn", `cleanup(${member.user.tag} [${guild.name}]): member in another server`);
 				voiceChannelOfMember = undefined;
 			}
 
 			if(role) {
 				if(!voiceChannelOfMember && member.roles.has(role.id)) {
+					this.verboseLogging && this.log("info", `cleanup(${member.user.tag} [${guild.name}]): member has voice role ${role.id} but not in vc, removing`);
 					member.removeRole(role);
 				} else if(voiceChannelOfMember && !member.roles.has(role.id)) {
+					this.verboseLogging && this.log("info", `cleanup(${member.user.tag} [${guild.name}]): member has no voice role ${role.id} but in vc, adding`);
 					member.addRole(role);
 				}
 			}
@@ -352,8 +373,11 @@ class VoiceRole extends Plugin implements IModule {
 					}
 				}
 				if(!ok) {
+					this.verboseLogging && this.log("info", `cleanup(${member.user.tag} [${guild.name}]): left vc with specific role, but has role ${memberRole.id}, removing`);
 					member.removeRole(memberRole);
-				} // else keeping role
+				} else { // else keeping role
+					this.verboseLogging && this.log("info", `cleanup(${member.user.tag} [${guild.name}]): still in vc with specific role ${memberRole.id}, nothing to do`);
+				}
 			}
 
 			// adding new specific role
@@ -382,9 +406,11 @@ class VoiceRole extends Plugin implements IModule {
 				if(specificRoleForChannel) {
 					if(guild.roles.has(specificRoleForChannel.voice_role)) {
 						if(!member.roles.has(specificRoleForChannel.voice_role)) {
+							this.verboseLogging && this.log("info", `cleanup(${member.user.tag} [${guild.name}]): in vc and has no specific role ${specificRoleForChannel.voice_role} of channel '${voiceChannelOfMember.name}'`);
 							member.addRole(specificRoleForChannel.voice_role);
 						}
 					} else {
+						this.verboseLogging && this.log("warn", `cleanup(${member.user.tag} [${guild.name}]): specific role ${specificRoleForChannel.voice_role} of channel '${voiceChannelOfMember.name}' was removed, row gets deleted`);
 						await this.deleteSpecificRow(specificRoleForChannel);
 					}
 				}
@@ -397,7 +423,10 @@ class VoiceRole extends Plugin implements IModule {
 	async VCR_Give(member: GuildMember) {
 		const row = await this.getGuildRow(member.guild);
 		const specificRow = member.voiceChannel ? await this.getSpecificRow(member.voiceChannel) : undefined;
-		if(!row && !specificRow) { return; }
+		if(!row && !specificRow) {
+			this.verboseLogging && this.log("warn", `give(${member.id} [[${member.guild.name}]]): could not find row and specific row for ${member.voiceChannel ? `${member.voiceChannel.name} [${member.voiceChannel.guild.name}]` : "unknown"}`);
+			return;
+		}
 
 		if(row && member.voiceChannel) {
 			// we have row & user in voice channel
@@ -408,14 +437,19 @@ class VoiceRole extends Plugin implements IModule {
 					// let's give it to user if he has not it
 					if(!member.roles.has(row.voice_role)) {
 						// yep, take this role, my dear
+						this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): member has no voice role, giving role ${row.voice_role}`);
 						await member.addRole(row.voice_role, await localizeForGuild(member.guild, "VOICEROLE_JOINED_VC", {
 							channelName: member.voiceChannel.name
 						}));
-					} // nop, you have this role, next time.. next time...
+					} else {// nop, you have this role, next time.. next time...
+						this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): member has voice role, nothing to do`);
+					}
 				} else {
 					// guild has no our voice role
 					// no surprises in bad admins
 					// removing it
+					this.verboseLogging && this.log("warn", `give(${member.id} [[${member.guild.name}]]): voice role ${row.voice_role} was removed, row gets updated`);
+
 					row.voice_role = "-";
 					await this.updateGuildRow(row);
 				}
@@ -424,17 +458,21 @@ class VoiceRole extends Plugin implements IModule {
 
 		if(specificRow) {
 			// we found specific role for this voice channel
-			if(!member.guild.roles.has(specificRow.voice_role)) {
-				// but sadly bad admin removed it, can remove row
-				await this.deleteSpecificRow(specificRow);
-			} else {
+			if(member.guild.roles.has(specificRow.voice_role)) {
 				// dear, do you have this specific role already?
 				if(!member.roles.has(specificRow.voice_role)) {
 					// nope, take it
+					this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): giving spefic role ${specificRow.voice_role}`);
 					await member.addRole(specificRow.voice_role, await localizeForGuild(member.guild, "VOICEROLE_SPECIFIC_ADDED", {
 						channelName: member.voiceChannel.name
 					}));
+				} else {
+					this.verboseLogging && this.log("info", `give(${member.id} [[${member.guild.name}]]): member already has specific role ${specificRow.voice_role}`);
 				}
+			} else {
+				// sadly bad admin removed it, can remove row
+				this.verboseLogging && this.log("warn", `give(${member.id} [[${member.guild.name}]]): specific role ${specificRow.voice_role} was removed, row gets deleted`);
+				await this.deleteSpecificRow(specificRow);
 			}
 		}
 	}
@@ -443,7 +481,10 @@ class VoiceRole extends Plugin implements IModule {
 		const row = await this.getGuildRow(member.guild);
 		const specificRow = member.voiceChannel ? await this.getSpecificRow(member.voiceChannel) : undefined;
 
-		if(!row && !specificRow) { return; }
+		if(!row && !specificRow) {
+			this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): could not find row and specific row for ${member.voiceChannel ? `${member.voiceChannel.name} [${member.voiceChannel.guild.name}]` : "unknown"}`);
+			return;
+		}
 
 		if(!newMember || !newMember.voiceChannel) {
 			// checking IF user not in voice channel anymore
@@ -454,14 +495,20 @@ class VoiceRole extends Plugin implements IModule {
 					// role's here, we can remove it
 					// but let's check if user HAS this role
 					if(member.roles.has(row.voice_role)) {
+						this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): removing voice role ${row.voice_role}`);
 						// yes, he has it, can remove
 						await member.removeRole(row.voice_role, await localizeForGuild(member.guild, "VOICEROLE_LEFT_VC", {
 							channelName: member.voiceChannel.name
 						}));
-					} // else we doing nothin'
+					} else { // else we doing nothin'
+						this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): member has no voice role ${row.voice_role}, nothing to do`);
+					}
 				} else {
 					// wowee, role got deleted
 					// so we deleting guild row too
+
+					this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): role ${row.voice_role} was removed, row gets updated NOW`);
+
 					row.voice_role = "-";
 					await this.updateGuildRow(row);
 				}
@@ -471,19 +518,22 @@ class VoiceRole extends Plugin implements IModule {
 		if(specificRow && member.voiceChannel) {
 			// we had specific role for old channel
 			// time to test if everything is OK
-			if(!member.guild.roles.has(specificRow.voice_role)) {
+			if(member.guild.roles.has(specificRow.voice_role)) {
+				// there we got good answer means everything is OK
+				// we can remove old specific role
+				if(member.roles.has(specificRow.voice_role)) {
+					this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): member has specific role ${specificRow.voice_role}, removing`);
+					await member.removeRole(specificRow.voice_role, await localizeForGuild(member.guild, "VOICEROLE_SPECIFIC_REMOVED", {
+						channelName: member.voiceChannel.name
+					}));
+				} else {
+					this.verboseLogging && this.log("warn", `remove(${member.id} [[${member.guild.name}]]): member has no specific role ${specificRow.voice_role}, nothing to do`);
+				}
+			} else {
 				// sadly, but this means not everything is OK
 				// we have no specific role no more on this guild
 				// time to delete specific row
 				await this.deleteSpecificRow(specificRow);
-			} else {
-				// there we got good answer means everything is OK
-				// we can remove old specific role
-				if(member.roles.has(specificRow.voice_role)) {
-					await member.removeRole(specificRow.voice_role, await localizeForGuild(member.guild, "VOICEROLE_SPECIFIC_REMOVED", {
-						channelName: member.voiceChannel.name
-					}));
-				}
 			}
 		}
 	}
