@@ -213,7 +213,7 @@ class VoiceRole extends Plugin implements IModule {
 		const oldVC = oldMember.voiceChannel;
 		const newVC = newMember.voiceChannel;
 
-		if(oldVC && newVC) {
+		if(oldVC && newVC && (oldVC.id !== newVC.id)) {
 			if(oldVC.guild.id !== newVC.guild.id) {
 				// moved from one server to another (╯°□°）╯︵ ┻━┻
 				// better not to wait this
