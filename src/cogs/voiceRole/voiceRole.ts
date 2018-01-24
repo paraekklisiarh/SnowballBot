@@ -73,8 +73,8 @@ class VoiceRole extends Plugin implements IModule {
 	}
 
 	private db: knex;
-	private log = getLogger("VoiceRole");
-	private verboseLogging = false;
+	private readonly log = getLogger("VoiceRole");
+	private readonly verboseLogging: boolean;
 
 	constructor(options: IVoiceRoleOptions) {
 		super({
@@ -86,7 +86,7 @@ class VoiceRole extends Plugin implements IModule {
 		if(options) {
 			this.verboseLogging = !!options.verboseLogs;
 			this.verboseLogging && this.log("info", "Verbose logs are enabled, prepare ur consol");
-		}
+		} else { this.verboseLogging = false; }
 	}
 
 	async init() {
